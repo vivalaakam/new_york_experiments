@@ -1,0 +1,13 @@
+version: '3'
+
+services:
+  postgres:
+    container_name: new_york_experiments
+    image: postgres:12.3
+    command: ["postgres", "-c", "log_statement=all"]
+    ports:
+      - 5432:5432
+    environment:
+      - POSTGRES_DB=new_york
+      - POSTGRES_USER=new_york_user
+      - POSTGRES_PASSWORD=new_york_password
