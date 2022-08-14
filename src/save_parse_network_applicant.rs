@@ -1,40 +1,40 @@
 use log::debug;
-use serde_json::json;
 
-use crate::{hash_md5, Parse};
+use crate::{hash_md5, NeatNetworkApplicants, Parse};
 
 pub async fn save_parse_network_applicant(
     parse: &Parse,
     from: u64,
     to: u64,
-    days_count: u64,
+    days: u64,
     high_score: f64,
     lookback: usize,
     gain: f64,
     stake: f64,
     lag: usize,
     interval: usize,
+    inputs: usize,
+    outputs: usize,
 ) -> String {
-    let applicant_id = hash_md5(format!("{}:{}", from, to));
+    let applicant_id = hash_md5(format!("{}:{}:{}:{}", from, to, inputs, outputs));
 
-    let created = parse
-        .create(
-            "NeatNetworkApplicants",
-            json!({
-                "objectId": applicant_id,
-                "from": from,
-                "to": to,
-                "days": days_count,
-                "highScore": high_score,
-                "lookback": lookback,
-                "gain": gain,
-                "stake": stake,
-                "lag": lag,
-                "interval": interval,
-                "touches": 0,
-            }),
-        )
-        .await;
-    debug!("{}", created);
+    let value = NeatNetworkApplicants {
+        object_id: applicant_id.to_string(),
+        from,
+        to,
+        days,
+        high_score,
+        lookback,
+        gain,
+        stake,
+        lag,
+        interval,
+        touches: 0,
+        inputs,
+        outputs,
+    };
+
+    let result = parse.create("NeatNetworkApplicants", value).await;
+    debug!("NeatNetworkApplicants: {result}");
     applicant_id
 }

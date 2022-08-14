@@ -2,12 +2,11 @@ use new_york_calculate_core::get_candles_with_cache;
 use serde_json::json;
 use vivalaakam_neat_rs::{Activation, Config, Genome, Organism};
 
-use crate::{
-    Buffer, find_appropriate, get_now, get_result, get_score_fitness,
-    NeatNetworkApplicants, NeatNetworkResults, NeatNetworks, Parse, save_parse_network,
-    save_parse_network_result,
-};
 use crate::get_keys_for_interval::get_keys_for_interval;
+use crate::{
+    find_appropriate, get_now, get_result, get_score_fitness, load_networks, save_parse_network,
+    save_parse_network_result, Buffer, NeatNetworkApplicants, NeatNetworkResults, Parse,
+};
 
 pub async fn neat_score_applicant(
     parse: &Parse,
@@ -33,7 +32,14 @@ pub async fn neat_score_applicant(
     let mut candles = vec![];
 
     for key in keys {
-        let new_candles = get_candles_with_cache("XRPUSDT".to_string(), applicant.interval, key, applicant.lookback, None).await;
+        let new_candles = get_candles_with_cache(
+            "XRPUSDT".to_string(),
+            applicant.interval,
+            key,
+            applicant.lookback,
+            None,
+        )
+        .await;
         candles = [candles, new_candles].concat();
     }
 
@@ -57,30 +63,7 @@ pub async fn neat_score_applicant(
 
     let mut stack = vec![];
     if can_best == true {
-        let mut networks = vec![];
-
-        let mut cont = true;
-        let mut skip = 0;
-
-        while cont == true {
-            let result = parse
-                .query::<NeatNetworks, _, _>(
-                    "NeatNetworks",
-                    json!({"inputs": inputs, "outputs": 2}),
-                    Some(10),
-                    Some(skip),
-                    None,
-                )
-                .await;
-
-            if result.results.len() < 10 {
-                cont = false;
-            }
-
-            networks = [networks, result.results].concat();
-
-            skip += 10
-        }
+        let networks = load_networks(&parse, applicant.inputs, applicant.outputs).await;
 
         for network in networks {
             let mut organism = Organism::new(network.network.into());
@@ -205,7 +188,7 @@ pub async fn neat_score_applicant(
                 applicant.object_id.to_string(),
                 result,
             )
-                .await;
+            .await;
 
             network_id_ret = Some(network_id.to_string())
         }

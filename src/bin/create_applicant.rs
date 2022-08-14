@@ -44,7 +44,8 @@ async fn main() {
     );
 
     println!("{:?}", args);
-
+    let inputs = args.lookback as usize * 15;
+    let outputs = 5;
     let result = create_applicant(
         &parse,
         args.days as u64,
@@ -54,6 +55,8 @@ async fn main() {
         args.lookback as usize,
         args.gain,
         args.stake,
+        inputs,
+        outputs,
     )
     .await;
 

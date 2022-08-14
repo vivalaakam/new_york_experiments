@@ -2,7 +2,7 @@ use serde_json::json;
 
 use crate::{NeatNetworks, Parse};
 
-pub async fn load_networks(parse: &Parse, inputs: usize) -> Vec<NeatNetworks> {
+pub async fn load_networks(parse: &Parse, inputs: usize, outputs: usize) -> Vec<NeatNetworks> {
     let mut networks = vec![];
 
     let mut cont = true;
@@ -12,7 +12,7 @@ pub async fn load_networks(parse: &Parse, inputs: usize) -> Vec<NeatNetworks> {
         let result = parse
             .query::<NeatNetworks, _, _>(
                 "NeatNetworks",
-                json!({"inputs": inputs, "outputs": 2}),
+                json!({"inputs": inputs, "outputs": outputs}),
                 Some(10),
                 Some(skip),
                 None,

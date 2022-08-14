@@ -4,11 +4,11 @@ use new_york_calculate_core::get_candles_with_cache;
 use serde_json::json;
 use vivalaakam_neat_rs::Organism;
 
-use crate::{
-    get_result, NeatNetworkApplicants, NeatNetworkResults, NeatNetworks,
-    Parse, save_parse_network_result,
-};
 use crate::get_keys_for_interval::get_keys_for_interval;
+use crate::{
+    get_result, save_parse_network_result, NeatNetworkApplicants, NeatNetworkResults, NeatNetworks,
+    Parse,
+};
 
 pub async fn on_add_network(parse: &Parse, network_id: String) {
     let parent = parse
@@ -49,7 +49,14 @@ pub async fn on_add_network(parse: &Parse, network_id: String) {
         for key in &keys {
             let store_key = format!("{}:{}:{}", key, applicant.interval, applicant.lookback);
             if !candles.contains_key(&store_key) {
-                let new_candles = get_candles_with_cache("XRPUSDT".to_string(), applicant.interval, *key, applicant.lookback, None).await;
+                let new_candles = get_candles_with_cache(
+                    "XRPUSDT".to_string(),
+                    applicant.interval,
+                    *key,
+                    applicant.lookback,
+                    None,
+                )
+                .await;
                 candles.insert(store_key.to_string(), new_candles);
             }
 
@@ -57,7 +64,7 @@ pub async fn on_add_network(parse: &Parse, network_id: String) {
                 current_candles,
                 candles.get(&store_key.to_string()).unwrap().to_vec(),
             ]
-                .concat();
+            .concat();
         }
 
         current_candles.sort();
@@ -81,7 +88,7 @@ pub async fn on_add_network(parse: &Parse, network_id: String) {
                 applicant.object_id.to_string(),
                 result,
             )
-                .await;
+            .await;
 
             println!(
                 "{}: {:.8} - {:.8}",

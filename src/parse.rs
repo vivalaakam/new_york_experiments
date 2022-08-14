@@ -25,25 +25,27 @@ pub struct NeatNetworkApplicants {
     pub lag: usize,
     pub interval: usize,
     pub touches: usize,
+    pub inputs: usize,
+    pub outputs: usize,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NeatNetworkResults {
-    object_id: String,
-    network_id: String,
+    pub(crate) object_id: String,
+    pub(crate) network_id: String,
     pub applicant_id: String,
-    score: f64,
+    pub(crate) score: f64,
     pub wallet: f64,
     pub drawdown: f64,
-    balance: f64,
-    avg_wait: f64,
-    min_balance: f64,
-    base_real: f64,
-    base_expected: f64,
-    successful_ratio: f64,
-    opened_orders: usize,
-    executed_orders: usize,
+    pub(crate) balance: f64,
+    pub(crate) avg_wait: f64,
+    pub(crate) min_balance: f64,
+    pub(crate) base_real: f64,
+    pub(crate) base_expected: f64,
+    pub(crate) successful_ratio: f64,
+    pub(crate) opened_orders: usize,
+    pub(crate) executed_orders: usize,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]

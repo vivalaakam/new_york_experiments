@@ -8,8 +8,8 @@ use serde_json::json;
 use vivalaakam_neat_rs::{Genome, Organism};
 
 use experiments::{
-    create_applicant, get_keys_for_interval, get_now, get_result, get_score_fitness,
-    load_networks, NeatNetworkApplicants, Parse, save_parse_network_result,
+    create_applicant, get_keys_for_interval, get_now, get_result, get_score_fitness, load_networks,
+    save_parse_network_result, NeatNetworkApplicants, Parse,
 };
 
 #[derive(Parser, Debug)]
@@ -52,7 +52,8 @@ async fn main() {
     println!("{:?}", args);
 
     let next = (get_now() / 86400000) as u64;
-
+    let inputs = args.lookback as usize * 15;
+    let outputs = 5;
     let results = parse
         .query::<NeatNetworkApplicants, _, _>(
             "NeatNetworkApplicants",
@@ -63,7 +64,7 @@ async fn main() {
         )
         .await;
 
-    let networks = load_networks(&parse, 12 * 15).await;
+    let networks = load_networks(&parse, inputs, outputs).await;
 
     let mut from = match results.results.first() {
         None => 1649030400,
@@ -82,8 +83,10 @@ async fn main() {
             args.lookback as usize,
             args.gain,
             args.stake,
+            inputs,
+            outputs,
         )
-            .await;
+        .await;
 
         println!("{}", result);
 
@@ -102,7 +105,14 @@ async fn main() {
         let mut candles = vec![];
 
         for key in keys {
-            let new_candles = get_candles_with_cache("XRPUSDT".to_string(), applicant.interval, key, applicant.lookback, None).await;
+            let new_candles = get_candles_with_cache(
+                "XRPUSDT".to_string(),
+                applicant.interval,
+                key,
+                applicant.lookback,
+                None,
+            )
+            .await;
             candles = [candles, new_candles].concat();
         }
 
@@ -143,7 +153,7 @@ async fn main() {
                 applicant.object_id.to_string(),
                 result,
             )
-                .await;
+            .await;
 
             println!("{} - {}", applicant.object_id.to_string(), score);
         }

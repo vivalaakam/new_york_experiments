@@ -56,6 +56,8 @@ async fn main() {
     let applicant_id = match args.applicant {
         Some(applicant_id) => applicant_id,
         None => {
+            let inputs = args.lookback as usize * 15;
+            let outputs = 5;
             let applicant_id = create_applicant(
                 &parse,
                 args.days as u64,
@@ -65,6 +67,8 @@ async fn main() {
                 args.lookback as usize,
                 args.gain,
                 args.stake,
+                inputs,
+                outputs,
             )
             .await;
             applicant_id
