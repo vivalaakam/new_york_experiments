@@ -1,16 +1,14 @@
 use new_york_calculate_core::Candle;
 use vivalaakam_neat_rs::Organism;
 
-use crate::get_result;
+use crate::NeatNetworkApplicants;
 
 pub fn get_score_fitness(
     organism: &mut Organism,
     candles: &Vec<Candle>,
-    gain: f64,
-    lag: usize,
-    stake: f64,
+    applicant: &NeatNetworkApplicants,
 ) {
-    let result = get_result(&organism, candles, gain, lag, stake);
+    let result = applicant.get_result(organism, candles);
 
     organism.set_fitness(result.wallet * result.drawdown);
 }

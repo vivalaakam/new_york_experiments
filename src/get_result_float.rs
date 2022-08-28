@@ -1,20 +1,20 @@
-use crate::Buffer;
-use new_york_calculate_core::{CalculateCommand, CalculateIter, CalculateResult, Candle};
 use std::sync::Mutex;
+
+use new_york_calculate_core::utils::range;
+use new_york_calculate_core::{CalculateCommand, CalculateIter, CalculateResult, Candle};
 use vivalaakam_neat_rs::Organism;
 
-pub fn get_result(
+use crate::Buffer;
+
+pub fn get_result_float(
     organism: &Organism,
     candles: &Vec<Candle>,
-    gain: f64,
     lag: usize,
     stake: f64,
 ) -> CalculateResult {
     let target = candles.len() - 288;
     let org = organism.clone();
     let buffer = Mutex::new(Buffer::new(lag));
-    let stake = stake;
-    let gain = gain / 100f64 + 1f64;
     let mut calculate_iter = CalculateIter::new(
         &candles,
         3000.0,
@@ -28,15 +28,18 @@ pub fn get_result(
             }
             let result = org.activate(candle.history.to_vec());
             let mut buffer = buffer.lock().unwrap();
-            if result[1] > result[0] {
-                buffer.push(1.0);
-                if buffer.avg() > 0.5 {
-                    CalculateCommand::BuyProfit(gain, stake, 1.0)
+
+            if result[0] >= 0.25 {
+                let interpolated = range(0.25, 1.0, 1.005, 1.025, result[0]);
+
+                buffer.push(interpolated);
+                if buffer.avg() >= 1.005 {
+                    CalculateCommand::BuyProfit(buffer.avg(), stake, 1.0)
                 } else {
                     CalculateCommand::None(0.0)
                 }
             } else {
-                buffer.push(0.0);
+                buffer.push(1.0);
                 CalculateCommand::None(0.0)
             }
         }),

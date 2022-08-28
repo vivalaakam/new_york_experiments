@@ -12,7 +12,7 @@ pub async fn load_networks(parse: &Parse, inputs: usize, outputs: usize) -> Vec<
         let result = parse
             .query::<NeatNetworks, _, _>(
                 "NeatNetworks",
-                json!({"inputs": inputs, "outputs": outputs}),
+                json!({ "inputs": inputs, "outputs": outputs }),
                 Some(10),
                 Some(skip),
                 None,

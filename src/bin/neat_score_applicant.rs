@@ -5,34 +5,21 @@ use dotenv::dotenv;
 use log::LevelFilter;
 use vivalaakam_neat_rs::Config;
 
-use experiments::{
-    create_applicant, neat_score_applicant, on_add_network, NeatNetworkApplicants, Parse,
-};
+use experiments::{neat_score_applicant, on_add_network, NeatNetworkApplicants, Parse};
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
 struct Args {
-    /// Number of times to load candles
-    #[clap(long, value_parser, default_value_t = 12)]
-    lookback: u32,
-    #[clap(long, value_parser, default_value_t = 1.25)]
-    gain: f64,
-    #[clap(long, value_parser, default_value_t = 200.0)]
-    stake: f64,
-    #[clap(long, value_parser, default_value_t = 4)]
-    lag: u32,
     #[clap(long, value_parser, default_value_t = 50)]
     population: u32,
     #[clap(long, value_parser, default_value_t = false)]
     best: bool,
-    #[clap(long, value_parser, default_value_t = 5)]
-    interval: u32,
+    #[clap(long, value_parser, default_value_t = false)]
+    crossover: bool,
     #[clap(long, value_parser, default_value_t = 100)]
-    stagnation: i32,
-    #[clap(long, value_parser, default_value_t = 6)]
-    days: u64,
+    stagnation: u32,
     #[clap(long, value_parser)]
-    applicant: Option<String>,
+    applicant: String,
 }
 
 #[tokio::main]
@@ -53,30 +40,8 @@ async fn main() {
         env::var("PARSE_REST_KEY").expect("PARSE_REST_KEY must be set"),
     );
 
-    let applicant_id = match args.applicant {
-        Some(applicant_id) => applicant_id,
-        None => {
-            let inputs = args.lookback as usize * 15;
-            let outputs = 5;
-            let applicant_id = create_applicant(
-                &parse,
-                args.days as u64,
-                None,
-                args.lag as usize,
-                args.interval as usize,
-                args.lookback as usize,
-                args.gain,
-                args.stake,
-                inputs,
-                outputs,
-            )
-            .await;
-            applicant_id
-        }
-    };
-
     let applicant = parse
-        .get::<NeatNetworkApplicants, _, _>("NeatNetworkApplicants", applicant_id)
+        .get::<NeatNetworkApplicants, _, _>("NeatNetworkApplicants", args.applicant)
         .await;
 
     println!("{:?}", applicant);
@@ -109,6 +74,7 @@ async fn main() {
         applicant,
         config,
         args.best,
+        args.crossover,
         args.stagnation as usize,
         args.population as usize,
     )

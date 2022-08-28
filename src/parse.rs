@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use reqwest::{Client, Response};
 use serde::{de, Deserialize, Serialize};
 use serde_json::json;
@@ -7,24 +9,6 @@ use serde_json::json;
 pub struct NeatNetworks {
     pub object_id: String,
     pub network: String,
-    pub inputs: usize,
-    pub outputs: usize,
-}
-
-#[derive(Clone, Debug, Default, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct NeatNetworkApplicants {
-    pub object_id: String,
-    pub from: u64,
-    pub to: u64,
-    pub days: u64,
-    pub high_score: f64,
-    pub lookback: usize,
-    pub gain: f64,
-    pub stake: f64,
-    pub lag: usize,
-    pub interval: usize,
-    pub touches: usize,
     pub inputs: usize,
     pub outputs: usize,
 }
@@ -46,6 +30,10 @@ pub struct NeatNetworkResults {
     pub(crate) successful_ratio: f64,
     pub(crate) opened_orders: usize,
     pub(crate) executed_orders: usize,
+    pub(crate) mae: f64,
+    pub(crate) gain_ratio: HashMap<String, f64>,
+    pub(crate) profit_ratio: HashMap<String, f64>,
+    pub(crate) is_unique: bool,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
@@ -142,7 +130,7 @@ impl Parse {
         T: Into<String>,
         T1: Serialize,
     {
-        Client::new()
+        let result = Client::new()
             .post(&format!(
                 "{}/classes/{}",
                 self.remote_url,
@@ -152,11 +140,15 @@ impl Parse {
             .header("X-Parse-REST-API-Key", self.rest_key.to_string())
             .json(&value)
             .send()
-            .await
-            .unwrap()
-            .text()
-            .await
-            .unwrap()
+            .await;
+
+        match result {
+            Ok(resp) => resp.text().await.unwrap(),
+            Err(err) => {
+                println!("{}", err);
+                return "".to_string();
+            }
+        }
     }
 
     pub async fn update<T, T1, T2, T3>(&self, class_name: T1, id: T2, value: T3) -> Option<T>

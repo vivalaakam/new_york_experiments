@@ -1,7 +1,14 @@
 use new_york_calculate_core::{CalculateCommand, CalculateIter, CalculateResult, Candle};
+use vivalaakam_neat_rs::{argmax, Organism};
 
-pub fn get_high_fitness(candles: &Vec<Candle>, stake: f64, profit_matrix: &Vec<f64>) -> f64 {
+pub fn get_result_matrix(
+    organism: &Organism,
+    candles: &Vec<Candle>,
+    stake: f64,
+    profit_matrix: &Vec<f64>,
+) -> CalculateResult {
     let target = candles.len() - 288;
+    let org = organism.clone();
     let profit_matrix = profit_matrix.to_vec();
     let mut calculate_iter = CalculateIter::new(
         &candles,
@@ -14,11 +21,12 @@ pub fn get_high_fitness(candles: &Vec<Candle>, stake: f64, profit_matrix: &Vec<f
             if ind >= target {
                 return CalculateCommand::Unknown;
             }
+            let result = argmax(org.activate(candle.history.to_vec()));
 
-            for j in 0..profit_matrix.len() {
-                let ind = profit_matrix.len() - j - 1;
-                if (candle.max_profit[ind] / 100f64 + 1f64) > profit_matrix[ind] {
-                    return CalculateCommand::BuyProfit(profit_matrix[ind], stake, 1f64);
+            if result > 0 {
+                let gain = profit_matrix[result - 1];
+                if gain > 1.0 {
+                    return CalculateCommand::BuyProfit(gain, stake, 1.0);
                 }
             }
 
@@ -32,7 +40,5 @@ pub fn get_high_fitness(candles: &Vec<Candle>, stake: f64, profit_matrix: &Vec<f
         cont = calculate_iter.next();
     }
 
-    let result: CalculateResult = calculate_iter.into();
-
-    result.wallet
+    calculate_iter.into()
 }

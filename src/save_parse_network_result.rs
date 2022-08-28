@@ -8,6 +8,7 @@ pub async fn save_parse_network_result(
     network_id: String,
     applicant_id: String,
     result: CalculateResult,
+    is_unique: bool,
 ) -> String {
     let result_id = hash_md5(format!("{}:{}", network_id.to_string(), applicant_id));
 
@@ -15,6 +16,7 @@ pub async fn save_parse_network_result(
         object_id: result_id.to_string(),
         network_id,
         applicant_id,
+        is_unique,
         score: result.score,
         wallet: result.wallet,
         drawdown: result.drawdown,
@@ -26,9 +28,11 @@ pub async fn save_parse_network_result(
         successful_ratio: result.successful_ratio,
         opened_orders: result.opened_orders,
         executed_orders: result.executed_orders,
+        mae: result.mae,
+        ..NeatNetworkResults::default()
     };
 
-    let result = parse.create("NeatNetworkResults", value).await;
-    debug!("NeatNetworkResults: {result}");
+    let resp = parse.create("NeatNetworkResults", value).await;
+    debug!("NeatNetworkResults: {resp}");
     result_id
 }

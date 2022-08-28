@@ -8,8 +8,8 @@ use serde_json::json;
 use vivalaakam_neat_rs::{Genome, Organism};
 
 use experiments::{
-    create_applicant, get_keys_for_interval, get_now, get_result, get_score_fitness, load_networks,
-    save_parse_network_result, NeatNetworkApplicants, Parse,
+    create_applicant, get_keys_for_interval, get_now, get_score_fitness, load_networks,
+    save_parse_network_result, NeatNetworkApplicantType, NeatNetworkApplicants, Parse,
 };
 
 #[derive(Parser, Debug)]
@@ -18,18 +18,24 @@ struct Args {
     /// Number of times to load candles
     #[clap(long, value_parser, default_value_t = 12)]
     lookback: u32,
-    #[clap(long, value_parser, default_value_t = 1.25)]
+    #[clap(long, value_parser, default_value_t = 1)]
+    outputs: u32,
+    #[clap(long, value_parser, default_value_t = 0.5)]
     gain: f64,
-    #[clap(long, value_parser, default_value_t = 200.0)]
+    #[clap(long, value_parser, default_value_t = 100.0)]
     stake: f64,
     #[clap(long, value_parser, default_value_t = 4)]
     lag: u32,
     #[clap(long, value_parser, default_value_t = 5)]
     interval: u32,
-    #[clap(long, value_parser, default_value_t = 7)]
+    #[clap(long, value_parser, default_value_t = 12)]
     days: u64,
     #[clap(long, value_parser)]
     from: Option<u64>,
+    #[clap(long, value_parser)]
+    ticker: String,
+    #[clap(long, value_parser)]
+    applicant_type: Option<String>,
 }
 
 #[tokio::main]
@@ -53,11 +59,11 @@ async fn main() {
 
     let next = (get_now() / 86400000) as u64;
     let inputs = args.lookback as usize * 15;
-    let outputs = 5;
+    let outputs = args.outputs as usize;
     let results = parse
         .query::<NeatNetworkApplicants, _, _>(
             "NeatNetworkApplicants",
-            json!({"days": args.days}),
+            json!({"days": args.days, "inputs": inputs, "outputs": outputs, "ticker": args.ticker}),
             None,
             None,
             Some("-from".to_string()),
@@ -73,6 +79,11 @@ async fn main() {
 
     let to = (next - args.days - 2) * 86400;
 
+    let applicant_type = match args.applicant_type {
+        None => NeatNetworkApplicantType::Float,
+        Some(v) => v.into(),
+    };
+
     while from <= to {
         let result = create_applicant(
             &parse,
@@ -85,6 +96,9 @@ async fn main() {
             args.stake,
             inputs,
             outputs,
+            None,
+            applicant_type.clone(),
+            args.ticker.to_string(),
         )
         .await;
 
@@ -95,6 +109,7 @@ async fn main() {
             .await;
 
         if applicant.is_none() {
+            from += 86400;
             continue;
         }
 
@@ -106,7 +121,7 @@ async fn main() {
 
         for key in keys {
             let new_candles = get_candles_with_cache(
-                "XRPUSDT".to_string(),
+                applicant.ticker.to_string(),
                 applicant.interval,
                 key,
                 applicant.lookback,
@@ -123,13 +138,7 @@ async fn main() {
         for network in &networks {
             let mut organism = Organism::new(network.network.to_string().into());
             organism.set_id(network.object_id.to_string());
-            get_score_fitness(
-                &mut organism,
-                &candles,
-                applicant.gain,
-                applicant.lag,
-                applicant.stake,
-            );
+            get_score_fitness(&mut organism, &candles, &applicant);
 
             if organism.get_fitness() > best.0.get_fitness() {
                 best = (organism, Some(network.object_id.to_string()))
@@ -137,13 +146,7 @@ async fn main() {
         }
 
         if let Some(ref object_id) = best.1 {
-            let result = get_result(
-                &best.0,
-                &candles,
-                applicant.gain,
-                applicant.lag,
-                applicant.stake,
-            );
+            let result = applicant.get_result(&best.0, &candles);
 
             let score = result.wallet * result.drawdown;
 
@@ -152,6 +155,7 @@ async fn main() {
                 object_id.to_string(),
                 applicant.object_id.to_string(),
                 result,
+                true,
             )
             .await;
 

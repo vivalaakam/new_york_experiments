@@ -4,7 +4,7 @@ use clap::Parser;
 use dotenv::dotenv;
 use log::LevelFilter;
 
-use experiments::{create_applicant, Parse};
+use experiments::{create_applicant, NeatNetworkApplicantType, Parse};
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -24,6 +24,8 @@ struct Args {
     days: u64,
     #[clap(long, value_parser)]
     from: Option<u64>,
+    #[clap(long, value_parser)]
+    ticker: String,
 }
 
 #[tokio::main]
@@ -57,6 +59,9 @@ async fn main() {
         args.stake,
         inputs,
         outputs,
+        None,
+        NeatNetworkApplicantType::Float,
+        args.ticker,
     )
     .await;
 

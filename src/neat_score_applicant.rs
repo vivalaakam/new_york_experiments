@@ -2,17 +2,20 @@ use new_york_calculate_core::get_candles_with_cache;
 use serde_json::json;
 use vivalaakam_neat_rs::{Activation, Config, Genome, Organism};
 
-use crate::get_keys_for_interval::get_keys_for_interval;
 use crate::{
-    find_appropriate, get_now, get_result, get_score_fitness, load_networks, save_parse_network,
-    save_parse_network_result, Buffer, NeatNetworkApplicants, NeatNetworkResults, Parse,
+    Buffer, find_appropriate, get_now, get_score_fitness, load_networks,
+    NeatNetworkResults, Parse, save_parse_network, save_parse_network_result,
 };
+use crate::cleanup_results::cleanup_results;
+use crate::get_keys_for_interval::get_keys_for_interval;
+use crate::neat_network_applicants::NeatNetworkApplicants;
 
 pub async fn neat_score_applicant(
     parse: &Parse,
     applicant: NeatNetworkApplicants,
     config: Config,
     can_best: bool,
+    can_crossover: bool,
     stagnation: usize,
     population_size: usize,
 ) -> Option<String> {
@@ -26,20 +29,19 @@ pub async fn neat_score_applicant(
         )
         .await;
 
-    let inputs = applicant.lookback * 15;
     let keys = get_keys_for_interval(applicant.from, applicant.to);
 
     let mut candles = vec![];
 
     for key in keys {
         let new_candles = get_candles_with_cache(
-            "XRPUSDT".to_string(),
+            applicant.ticker.to_string(),
             applicant.interval,
             key,
             applicant.lookback,
             None,
         )
-        .await;
+            .await;
         candles = [candles, new_candles].concat();
     }
 
@@ -50,7 +52,7 @@ pub async fn neat_score_applicant(
     let results = parse
         .query::<NeatNetworkResults, _, _>(
             "NeatNetworkResults",
-            json!({"applicantId": applicant.object_id.to_string()}),
+            json!({"applicantId": applicant.object_id.to_string(), "isUnique": true}),
             None,
             None,
             None,
@@ -61,53 +63,70 @@ pub async fn neat_score_applicant(
         prev_score = prev_score.max(result.wallet * result.drawdown);
     }
 
-    let mut stack = vec![];
+    let mut population = vec![];
+
     if can_best == true {
         let networks = load_networks(&parse, applicant.inputs, applicant.outputs).await;
 
         for network in networks {
             let mut organism = Organism::new(network.network.into());
             organism.set_id(network.object_id);
-            get_score_fitness(
-                &mut organism,
-                &candles,
-                applicant.gain,
-                applicant.lag,
-                applicant.stake,
-            );
-            stack.push(organism);
+            get_score_fitness(&mut organism, &candles, &applicant);
+            population.push(organism);
+        }
+
+        population.sort();
+
+        if can_crossover == true {
+            if population.len() > population_size {
+                population = population[0..population_size].to_vec();
+            }
+
+            let max_ind = population.len();
+
+            for i in 0..max_ind {
+                for j in 0..max_ind {
+                    if i != j
+                        && population[j].genome.get_nodes().len()
+                        > applicant.inputs + applicant.outputs
+                    {
+                        match population[i].genome.mutate_crossover(&population[j].genome) {
+                            Some(genome) => {
+                                let mut organism = Organism::new(genome);
+                                get_score_fitness(&mut organism, &candles, &applicant);
+                                population.push(organism);
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            }
+
+            population.sort();
+        }
+
+        if population.len() > population_size {
+            population = population[0..population_size].to_vec();
         }
     }
 
-    stack.sort_by(|a, b| a.get_fitness().partial_cmp(&b.get_fitness()).unwrap());
-    if stack.len() > population_size {
-        stack = stack[stack.len() - population_size..stack.len()].to_vec();
-    }
-
-    let parent = stack.pop();
-
-    let mut population = vec![];
-
-    while population.len() < population_size * 10 {
+    let parent = population.pop();
+    while population.len() < population_size * 2 {
         let mut organism = match parent.as_ref() {
             None => Organism::new(Genome::generate_genome(
-                inputs,
-                2,
+                applicant.inputs,
+                applicant.outputs,
                 vec![],
-                Some(Activation::Relu),
+                Some(Activation::Sigmoid),
                 &config,
             )),
             Some(organism) => organism.mutate(None, &config).unwrap(),
         };
 
-        get_score_fitness(
-            &mut organism,
-            &candles,
-            applicant.gain,
-            applicant.lag,
-            applicant.stake,
-        );
-        population.push(organism);
+        get_score_fitness(&mut organism, &candles, &applicant);
+        if organism.get_fitness() > 0f64 {
+            population.push(organism);
+        }
     }
 
     population.sort();
@@ -119,6 +138,8 @@ pub async fn neat_score_applicant(
         applicant.from, applicant.to, applicant.high_score
     );
     let mut buffer = Buffer::new(10);
+    let mut best_result = None;
+
     while population[0].get_stagnation() < stagnation {
         let start = get_now();
         let mut new_population = vec![];
@@ -133,13 +154,7 @@ pub async fn neat_score_applicant(
         }
 
         for organism in new_population.iter_mut() {
-            get_score_fitness(
-                organism,
-                &candles,
-                applicant.gain,
-                applicant.lag,
-                applicant.stake,
-            );
+            get_score_fitness(organism, &candles, &applicant);
         }
 
         population = [population, new_population].concat();
@@ -159,6 +174,24 @@ pub async fn neat_score_applicant(
             );
 
             best.inc_stagnation();
+
+            if best.get_id().is_none() {
+                let result = applicant.get_result(&best, &candles);
+                let network_id =
+                    save_parse_network(&parse, best, applicant.inputs, applicant.outputs).await;
+                let result_id = save_parse_network_result(
+                    &parse,
+                    network_id.to_string(),
+                    applicant.object_id.to_string(),
+                    result,
+                    false,
+                )
+                    .await;
+
+                best_result = Some(result_id);
+
+                best.set_id(network_id);
+            }
         }
 
         epoch += 1;
@@ -174,23 +207,63 @@ pub async fn neat_score_applicant(
         );
 
         if best.get_fitness() > prev_score {
-            let result = get_result(
-                &best,
-                &candles,
-                applicant.gain,
-                applicant.lag,
-                applicant.stake,
-            );
-            let network_id = save_parse_network(&parse, best, inputs, 2).await;
-            let _result_id = save_parse_network_result(
-                &parse,
-                network_id.to_string(),
-                applicant.object_id.to_string(),
-                result,
-            )
-            .await;
+            if let Some(network_id) = best.get_id() {
+                network_id_ret = Some(network_id.to_string());
+            }
 
-            network_id_ret = Some(network_id.to_string())
+            if let Some(best_result_id) = best_result {
+                parse
+                    .update::<NeatNetworkResults, _, _, _>(
+                        "NeatNetworkResults",
+                        best_result_id.to_string(),
+                        json!({ "isUnique": true }),
+                    )
+                    .await;
+            }
+        }
+    }
+
+    let current_results = parse
+        .query::<NeatNetworkResults, _, _>(
+            "NeatNetworkResults",
+            json!({
+                "isUnique": false,
+                "applicantId": applicant.object_id
+            }),
+            Some(10000),
+            None,
+            None,
+        )
+        .await;
+
+    for row in current_results.results {
+        cleanup_results(&parse, &row).await;
+    }
+
+    let mut exists = parse
+        .query::<NeatNetworkResults, _, _>(
+            "NeatNetworkResults",
+            json!({
+                "isUnique": true,
+                "applicantId": applicant.object_id
+            }),
+            Some(10000),
+            None,
+            None,
+        )
+        .await;
+
+    if exists.results.len() > 10 {
+        exists.results.sort_by(|a, b| {
+            (b.wallet * b.drawdown)
+                .partial_cmp(&(a.wallet * a.drawdown))
+                .unwrap()
+        });
+
+        while exists.results.len() > 10 {
+            if let Some(last) = exists.results.pop() {
+                cleanup_results(&parse, &last).await;
+            }
         }
     }
 
