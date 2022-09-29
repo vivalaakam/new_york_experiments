@@ -7,8 +7,9 @@ pub fn get_score_fitness(
     organism: &mut Organism,
     candles: &Vec<Candle>,
     applicant: &NeatNetworkApplicants,
+    epoch: usize,
 ) {
-    let result = applicant.get_result(organism, candles);
+    let result = applicant.get_result(organism, candles, epoch);
 
     organism.set_fitness(result.wallet * result.drawdown);
 }

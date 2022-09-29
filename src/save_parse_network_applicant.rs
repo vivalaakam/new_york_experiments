@@ -1,4 +1,5 @@
 use log::debug;
+use new_york_calculate_core::Indicators;
 
 use crate::neat_network_applicant_type::NeatNetworkApplicantType;
 use crate::neat_network_applicants::NeatNetworkApplicants;
@@ -18,10 +19,13 @@ pub async fn save_parse_network_applicant(
     inputs: usize,
     outputs: usize,
     profit_matrix: Vec<f64>,
+    gain_matrix: Vec<f64>,
+    indicators: Vec<Indicators>,
     applicant_type: NeatNetworkApplicantType,
     ticker: String,
+    balance: f64,
 ) -> String {
-    let applicant_id = hash_md5(format!("{ticker}:{from}:{to}:{inputs}:{outputs}"));
+    let applicant_id = hash_md5(format!("{ticker}:{from}:{to}:{inputs}:{outputs}:{applicant_type}"));
 
     let value = NeatNetworkApplicants {
         object_id: applicant_id.to_string(),
@@ -38,8 +42,11 @@ pub async fn save_parse_network_applicant(
         inputs,
         outputs,
         profit_matrix,
+        gain_matrix,
+        indicators,
         applicant_type,
         ticker,
+        balance
     };
 
     let result = parse.create("NeatNetworkApplicants", value).await;

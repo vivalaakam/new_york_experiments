@@ -4,6 +4,7 @@ use vivalaakam_neat_rs::{argmax, Organism};
 pub fn get_result_matrix(
     organism: &Organism,
     candles: &Vec<Candle>,
+    balance: f64,
     stake: f64,
     profit_matrix: &Vec<f64>,
 ) -> CalculateResult {
@@ -12,12 +13,12 @@ pub fn get_result_matrix(
     let profit_matrix = profit_matrix.to_vec();
     let mut calculate_iter = CalculateIter::new(
         &candles,
-        3000.0,
+        balance,
         0.5,
         5,
         1f64,
         0.0001f64,
-        Box::new(move |candle, ind| {
+        Box::new(move |candle, ind, _stats| {
             if ind >= target {
                 return CalculateCommand::Unknown;
             }

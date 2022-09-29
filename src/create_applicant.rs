@@ -1,4 +1,4 @@
-use new_york_calculate_core::get_candles_with_cache;
+use new_york_calculate_core::{get_candles_with_cache, Indicators};
 
 use crate::get_keys_for_interval::get_keys_for_interval;
 use crate::neat_network_applicant_type::NeatNetworkApplicantType;
@@ -16,8 +16,11 @@ pub async fn create_applicant(
     inputs: usize,
     outputs: usize,
     profit_matrix: Option<Vec<f64>>,
+    gain_matrix: Option<Vec<f64>>,
+    indicators: Option<Vec<Indicators>>,
     applicant_type: NeatNetworkApplicantType,
     ticker: String,
+    balance: f64,
 ) -> String {
     let mut candles = vec![];
     let next = (get_now() / 86400000) as u64;
@@ -40,6 +43,32 @@ pub async fn create_applicant(
         Some(matrix) => matrix.to_vec(),
     };
 
+    let gain_matrix = match gain_matrix {
+        None => vec![200.0],
+        Some(matrix) => matrix.to_vec(),
+    };
+
+    let indicators = match indicators {
+        None => vec![
+            Indicators::Open24,
+            Indicators::High24,
+            Indicators::Low24,
+            Indicators::Close24,
+            Indicators::Volume24,
+            Indicators::QuoteAsset24,
+            Indicators::Trades24,
+            Indicators::BuyBase24,
+            Indicators::BuyQuote24,
+            Indicators::Candle24Delta,
+            Indicators::Volume24Delta,
+            Indicators::QuoteAsset24Delta,
+            Indicators::Trades24Delta,
+            Indicators::BuyBase24Delta,
+            Indicators::BuyQuote24Delta,
+        ],
+        Some(indicators) => indicators.to_vec(),
+    };
+
     let high_score = get_high_fitness(&candles, stake, &profit_matrix);
 
     let applicant_id = save_parse_network_applicant(
@@ -56,8 +85,11 @@ pub async fn create_applicant(
         inputs,
         outputs,
         profit_matrix,
+        gain_matrix,
+        indicators,
         applicant_type,
         ticker,
+        balance
     )
     .await;
 

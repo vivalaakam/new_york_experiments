@@ -34,6 +34,7 @@ pub struct NeatNetworkResults {
     pub(crate) gain_ratio: HashMap<String, f64>,
     pub(crate) profit_ratio: HashMap<String, f64>,
     pub(crate) is_unique: bool,
+    pub(crate) stream: String,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]

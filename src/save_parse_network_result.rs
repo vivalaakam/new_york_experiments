@@ -9,6 +9,7 @@ pub async fn save_parse_network_result(
     applicant_id: String,
     result: CalculateResult,
     is_unique: bool,
+    stream: String
 ) -> String {
     let result_id = hash_md5(format!("{}:{}", network_id.to_string(), applicant_id));
 
@@ -29,6 +30,7 @@ pub async fn save_parse_network_result(
         opened_orders: result.opened_orders,
         executed_orders: result.executed_orders,
         mae: result.mae,
+        stream,
         ..NeatNetworkResults::default()
     };
 

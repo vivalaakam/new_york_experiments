@@ -69,14 +69,17 @@ async fn main() {
         node_enabled: 0.25,
     };
 
+    let stagnation = args.stagnation as usize + applicant.touches * 100;
+    let population = args.population as usize + applicant.touches * 10;
+
     let network_id = neat_score_applicant(
         &parse,
         applicant,
         config,
         args.best,
         args.crossover,
-        args.stagnation as usize,
-        args.population as usize,
+        stagnation,
+        population,
     )
     .await;
 

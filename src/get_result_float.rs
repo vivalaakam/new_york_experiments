@@ -9,6 +9,7 @@ use crate::Buffer;
 pub fn get_result_float(
     organism: &Organism,
     candles: &Vec<Candle>,
+    balance: f64,
     lag: usize,
     stake: f64,
 ) -> CalculateResult {
@@ -17,12 +18,12 @@ pub fn get_result_float(
     let buffer = Mutex::new(Buffer::new(lag));
     let mut calculate_iter = CalculateIter::new(
         &candles,
-        3000.0,
+        balance,
         0.5,
         5,
         1f64,
         0.0001f64,
-        Box::new(move |candle, ind| {
+        Box::new(move |candle, ind, _stats| {
             if ind >= target {
                 return CalculateCommand::Unknown;
             }

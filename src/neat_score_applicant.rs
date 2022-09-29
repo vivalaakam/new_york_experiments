@@ -1,14 +1,19 @@
 use new_york_calculate_core::get_candles_with_cache;
+use new_york_utils::make_id;
 use serde_json::json;
 use vivalaakam_neat_rs::{Activation, Config, Genome, Organism};
 
-use crate::{
-    Buffer, find_appropriate, get_now, get_score_fitness, load_networks,
-    NeatNetworkResults, Parse, save_parse_network, save_parse_network_result,
-};
+use crate::{Buffer, find_appropriate, get_now, get_score_fitness, load_networks, NeatNetworkApplicantType, NeatNetworkResults, Parse, save_parse_network, save_parse_network_result};
 use crate::cleanup_results::cleanup_results;
 use crate::get_keys_for_interval::get_keys_for_interval;
 use crate::neat_network_applicants::NeatNetworkApplicants;
+
+fn can_go_next(applicant: &NeatNetworkApplicants, epoch: usize, candles_len: usize, stagnation: usize, limit: usize) -> bool {
+    match applicant.applicant_type {
+        NeatNetworkApplicantType::StepsIterate => epoch < candles_len || stagnation < limit,
+        _ => stagnation < limit
+    }
+}
 
 pub async fn neat_score_applicant(
     parse: &Parse,
@@ -29,6 +34,8 @@ pub async fn neat_score_applicant(
         )
         .await;
 
+    let stream = make_id(5);
+
     let keys = get_keys_for_interval(applicant.from, applicant.to);
 
     let mut candles = vec![];
@@ -39,7 +46,7 @@ pub async fn neat_score_applicant(
             applicant.interval,
             key,
             applicant.lookback,
-            None,
+            Some(applicant.indicators.to_vec()),
         )
             .await;
         candles = [candles, new_candles].concat();
@@ -71,7 +78,7 @@ pub async fn neat_score_applicant(
         for network in networks {
             let mut organism = Organism::new(network.network.into());
             organism.set_id(network.object_id);
-            get_score_fitness(&mut organism, &candles, &applicant);
+            get_score_fitness(&mut organism, &candles, &applicant, 0);
             population.push(organism);
         }
 
@@ -93,7 +100,7 @@ pub async fn neat_score_applicant(
                         match population[i].genome.mutate_crossover(&population[j].genome) {
                             Some(genome) => {
                                 let mut organism = Organism::new(genome);
-                                get_score_fitness(&mut organism, &candles, &applicant);
+                                get_score_fitness(&mut organism, &candles, &applicant, 0);
                                 population.push(organism);
                             }
                             _ => {}
@@ -123,7 +130,7 @@ pub async fn neat_score_applicant(
             Some(organism) => organism.mutate(None, &config).unwrap(),
         };
 
-        get_score_fitness(&mut organism, &candles, &applicant);
+        get_score_fitness(&mut organism, &candles, &applicant, 0);
         if organism.get_fitness() > 0f64 {
             population.push(organism);
         }
@@ -134,13 +141,15 @@ pub async fn neat_score_applicant(
 
     let mut epoch = 0;
     println!(
-        "{} - {} : high: {:.8} prev: {prev_score:.8}",
-        applicant.from, applicant.to, applicant.high_score
+        "{} - {} - {} : high: {:.8} prev: {prev_score:.8}",
+        applicant.from, applicant.to, stream, applicant.high_score
     );
     let mut buffer = Buffer::new(10);
     let mut best_result = None;
 
-    while population[0].get_stagnation() < stagnation {
+    let candles_len = candles.len();
+
+    while can_go_next(&applicant, epoch, candles_len, population[0].get_stagnation(), stagnation) == true {
         let start = get_now();
         let mut new_population = vec![];
 
@@ -151,10 +160,22 @@ pub async fn neat_score_applicant(
                 None => {}
                 Some(organism) => new_population.push(organism),
             }
+
+            match applicant.applicant_type {
+                NeatNetworkApplicantType::StepsIterate | NeatNetworkApplicantType::StepsIterateBack => {
+                    match population.get_mut(i) {
+                        None => {}
+                        Some(organism) => {
+                            get_score_fitness(organism, &candles, &applicant, epoch);
+                        }
+                    }
+                }
+                _ => {}
+            }
         }
 
         for organism in new_population.iter_mut() {
-            get_score_fitness(organism, &candles, &applicant);
+            get_score_fitness(organism, &candles, &applicant, epoch);
         }
 
         population = [population, new_population].concat();
@@ -176,7 +197,7 @@ pub async fn neat_score_applicant(
             best.inc_stagnation();
 
             if best.get_id().is_none() {
-                let result = applicant.get_result(&best, &candles);
+                let result = applicant.get_result(&best, &candles, epoch);
                 let network_id =
                     save_parse_network(&parse, best, applicant.inputs, applicant.outputs).await;
                 let result_id = save_parse_network_result(
@@ -185,6 +206,7 @@ pub async fn neat_score_applicant(
                     applicant.object_id.to_string(),
                     result,
                     false,
+                    stream.to_string(),
                 )
                     .await;
 
@@ -228,7 +250,8 @@ pub async fn neat_score_applicant(
             "NeatNetworkResults",
             json!({
                 "isUnique": false,
-                "applicantId": applicant.object_id
+                "applicantId": applicant.object_id,
+                "stream": stream.to_string()
             }),
             Some(10000),
             None,
@@ -245,7 +268,7 @@ pub async fn neat_score_applicant(
             "NeatNetworkResults",
             json!({
                 "isUnique": true,
-                "applicantId": applicant.object_id
+                "applicantId": applicant.object_id,
             }),
             Some(10000),
             None,

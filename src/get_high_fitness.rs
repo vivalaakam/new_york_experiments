@@ -2,7 +2,7 @@ use new_york_calculate_core::{CalculateCommand, CalculateIter, CalculateResult, 
 
 pub fn get_high_fitness(candles: &Vec<Candle>, stake: f64, profit_matrix: &Vec<f64>) -> f64 {
     let target = candles.len() - 288;
-    let profit_matrix = profit_matrix.to_vec();
+    let profit_matrix = profit_matrix[0..5].to_vec();
     let mut calculate_iter = CalculateIter::new(
         &candles,
         3000.0,
@@ -10,7 +10,7 @@ pub fn get_high_fitness(candles: &Vec<Candle>, stake: f64, profit_matrix: &Vec<f
         5,
         1f64,
         0.0001f64,
-        Box::new(move |candle, ind| {
+        Box::new(move |candle, ind, _stats| {
             if ind >= target {
                 return CalculateCommand::Unknown;
             }
