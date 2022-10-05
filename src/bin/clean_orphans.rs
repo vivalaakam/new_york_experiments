@@ -3,10 +3,9 @@ use std::env;
 use clap::Parser;
 use dotenv::dotenv;
 use log::LevelFilter;
-use new_york_calculate_core::{get_candles_with_cache, Indicators};
 use serde_json::json;
 
-use experiments::{create_applicant, get_keys_for_interval, get_now, get_score_fitness, load_networks, save_parse_network_result, NeatNetworkApplicantType, NeatNetworkApplicants, Parse, NeatNetworkResults};
+use experiments::{load_networks, NeatNetworkResults, Parse};
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -15,6 +14,8 @@ struct Args {
     outputs: u32,
     #[clap(long, value_parser, default_value_t = 63)]
     inputs: u32,
+    #[clap(long, value_parser, default_value_t = 1)]
+    limit: u32,
 }
 
 #[tokio::main]
@@ -38,8 +39,7 @@ async fn main() {
 
     let inputs = args.inputs as usize;
     let outputs = args.outputs as usize;
-
-
+    let limit  = args.limit as usize;
     let networks = load_networks(&parse, inputs, outputs).await;
 
     for network in networks {
@@ -57,11 +57,18 @@ async fn main() {
 
         println!("{} - {}", network.object_id, networks_results.results.len());
 
-        if networks_results.results.len() == 0 {
+        if networks_results.results.len() < limit {
+            for network_result in networks_results.results {
+                parse
+                    .delete("NeatNetworkResults", network_result.object_id.to_string())
+                    .await
+                    .expect("NeatNetworkResults delete error");
+            }
+
             parse
                 .delete("NeatNetworks", network.object_id.to_string())
                 .await
-                .expect("TODO: panic message");
+                .expect("NeatNetworks delete error");
         }
     }
 }

@@ -15,7 +15,6 @@ pub fn get_result_matrix(
         &candles,
         balance,
         0.5,
-        5,
         1f64,
         0.0001f64,
         Box::new(move |candle, ind, _stats| {
@@ -27,11 +26,11 @@ pub fn get_result_matrix(
             if result > 0 {
                 let gain = profit_matrix[result - 1];
                 if gain > 1.0 {
-                    return CalculateCommand::BuyProfit(gain, stake, 1.0);
+                    return CalculateCommand::BuyProfit(gain, stake);
                 }
             }
 
-            CalculateCommand::None(0.0)
+            CalculateCommand::None
         }),
     );
 

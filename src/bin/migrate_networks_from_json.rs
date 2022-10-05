@@ -4,9 +4,9 @@ use std::io::Read;
 
 use dotenv::dotenv;
 use log::LevelFilter;
-use vivalaakam_neat_rs::{Connection, Genome, NeuronType, Node, Organism};
+use vivalaakam_neat_rs::{Genome, Organism};
 
-use experiments::{load_networks, on_add_network, save_parse_network, Parse};
+use experiments::{Parse, save_parse_network};
 
 #[tokio::main]
 async fn main() {

@@ -141,7 +141,7 @@ pub async fn neat_score_applicant(
 
     let mut epoch = 0;
     println!(
-        "{} - {} - {} : high: {:.8} prev: {prev_score:.8}",
+        "{} - {} - {} : high: {: >14.8} prev: {prev_score: >14.8}",
         applicant.from, applicant.to, stream, applicant.high_score
     );
     let mut buffer = Buffer::new(10);
@@ -187,7 +187,7 @@ pub async fn neat_score_applicant(
 
         if let Some(best) = population.first_mut() {
             println!(
-                "{epoch: >6} {:.8} {: >3} ( dur: {:.3}, avg: {:.3} )",
+                "{epoch: >6} {: >14.8} {: >4} ( dur: {: >8.3}, avg: {: >8.3} )",
                 best.get_fitness(),
                 best.get_stagnation(),
                 duration,
@@ -223,7 +223,7 @@ pub async fn neat_score_applicant(
 
     if let Some(best) = population.first_mut() {
         println!(
-            "best {:.8} {: >3}",
+            "best {: >14.8} {: >3}",
             best.get_fitness(),
             best.get_stagnation(),
         );
@@ -289,6 +289,8 @@ pub async fn neat_score_applicant(
             }
         }
     }
+
+    println!("network: {:?}", network_id_ret);
 
     network_id_ret
 }

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use new_york_calculate_core::{get_candles_with_cache, utils::ceil_to_nearest};
 use new_york_utils::make_id;
@@ -14,7 +14,7 @@ use crate::get_keys_for_interval::get_keys_for_interval;
 
 pub async fn on_add_network(parse: &Parse, network_id: String) {
     let parent = parse
-        .get::<NeatNetworks, _, _>("NeatNetworks", network_id)
+        .get::<NeatNetworks, _, _>("NeatNetworks", network_id.to_string())
         .await;
 
     if parent.is_none() {
@@ -34,54 +34,43 @@ pub async fn on_add_network(parse: &Parse, network_id: String) {
             }),
             Some(10000),
             None,
-            None,
+            Some("from,days".to_string()),
         )
         .await;
-
-    let applicants_key = applicants
-        .results
-        .to_vec()
-        .into_iter()
-        .map(|applicant| applicant.object_id)
-        .collect::<Vec<_>>();
-
-    let mut cont = true;
-    let mut skip = 0;
-    let mut results_cache: HashMap<String, f64> = HashMap::new();
-
-    while cont == true {
-        let results = parse
-            .query::<NeatNetworkResults, _, _>(
-                "NeatNetworkResults",
-                json!({
-                    "applicantId": {
-                        "$in": applicants_key
-                    }
-                }),
-                None,
-                Some(skip),
-                None,
-            )
-            .await;
-
-        for result in &results.results {
-            let value = *results_cache.get(&result.applicant_id).unwrap_or(&f64::MAX);
-            results_cache.insert(
-                result.applicant_id.to_string(),
-                ceil_to_nearest(value.min(result.wallet * result.drawdown), 0.00000001),
-            );
-        }
-        skip += results.results.len();
-        if results.results.len() < 1000 {
-            cont = false;
-        }
-    }
 
     let mut candles = HashMap::new();
 
     let mut best = (0.0, None);
 
     for applicant in &applicants.results {
+        let results = parse
+            .query::<NeatNetworkResults, _, _>(
+                "NeatNetworkResults",
+                json!({
+                    "applicantId": applicant.object_id.to_string(),
+                    "isUnique": true
+                }),
+                None,
+                None,
+                None,
+            )
+            .await;
+
+        let mut min_value = f64::MAX;
+        let mut max_value = f64::MIN;
+        let mut exists = HashSet::new();
+
+        for result in &results.results {
+            min_value = ceil_to_nearest(min_value.min(result.wallet * result.drawdown), 0.00000001);
+            max_value = ceil_to_nearest(max_value.max(result.wallet * result.drawdown), 0.00000001);
+
+            exists.insert(result.network_id.to_string());
+        }
+
+        if exists.contains(&parent.object_id.to_string()) {
+            continue;
+        }
+
         let keys = get_keys_for_interval(applicant.from, applicant.to);
         let mut current_candles = vec![];
         for key in &keys {
@@ -114,21 +103,17 @@ pub async fn on_add_network(parse: &Parse, network_id: String) {
 
         current_candles.sort();
 
-        let max_result = *results_cache
-            .get(&applicant.object_id.to_string())
-            .unwrap_or(&0f64);
-
         let result = applicant.get_result(&organism, &current_candles, current_candles.len());
 
         let score = ceil_to_nearest(result.wallet * result.drawdown, 0.00000001);
-        if score > max_result {
+        if score > min_value || (results.results.len() < 10 && score > 0f64) {
             let _ = save_parse_network_result(
                 &parse,
                 parent.object_id.to_string(),
                 applicant.object_id.to_string(),
                 result,
                 true,
-                make_id(5)
+                make_id(5),
             )
                 .await;
 
@@ -156,18 +141,20 @@ pub async fn on_add_network(parse: &Parse, network_id: String) {
                 }
             }
 
-            if score / max_result > best.0 {
-                best = (score / max_result, Some(applicant.object_id.to_string()))
+            if score / max_value > best.0 {
+                best = (score / max_value, Some(applicant.object_id.to_string()))
             }
 
             println!(
-                "{} ({}): {:.8} - {:.8} {:.8}/d {:.2}",
+                "{} {} {} ({: >2}): {: >14.8} - {: >14.8} {: >14.8}/d {: >8.2}\x1b[0m",
+                if score > max_value { "\x1b[32m" } else { "\x1b[33m" },
                 applicant.object_id.to_string(),
+                applicant.from,
                 applicant.days,
-                max_result,
+                max_value,
                 score,
                 score / applicant.days as f64,
-                (score / max_result) * 100.0 - 100.0
+                (score / max_value) * 100.0 - 100.0
             );
         }
     }

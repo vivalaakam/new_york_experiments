@@ -1,4 +1,5 @@
 use new_york_calculate_core::{CalculateCommand, CalculateIter, CalculateResult, Candle};
+use new_york_utils::Matrix;
 use vivalaakam_neat_rs::Organism;
 
 pub fn get_result_steps(
@@ -12,10 +13,11 @@ pub fn get_result_steps(
     let org = organism.clone();
 
     let mut matrix = vec![];
-
+    let mut responses = vec![CalculateCommand::None];
     for profit in profit_matrix {
         for stake in stake_matrix {
-            matrix.push(vec![0.0, 1.0, *profit, *stake])
+            matrix.push(vec![0.0, 1.0, *profit, *stake]);
+            responses.push(CalculateCommand::BuyProfit( *profit, *stake));
         }
     }
 
@@ -25,7 +27,6 @@ pub fn get_result_steps(
         &candles,
         balance,
         0.5,
-        5,
         1f64,
         0.0001f64,
         Box::new(move |candle, ind, stats| {
@@ -42,26 +43,32 @@ pub fn get_result_steps(
                     stats.expected,
                     stats.real,
                 ]
-                .to_vec(),
+                    .to_vec(),
             ]
-            .concat();
+                .concat();
 
-            let result = org.activate([history.to_vec(), empty.to_vec()].concat());
-
-            let mut max = (result[0], None);
+            let mut req = [history.to_vec(), empty.to_vec()].concat();
 
             for val in &matrix {
-                let result = org.activate([history.to_vec(), val.to_vec()].concat());
+                req = [req, history.to_vec(), val.to_vec()].concat()
+            }
 
-                if result[0] > max.0 {
-                    max = (result[0], Some(val))
+            let mut matrix_req = Matrix::new(history.len() + empty.len(), responses.len());
+            let _ = matrix_req.set_data(req);
+
+            let result = org.activate_matrix(&matrix_req);
+
+            let mut max = (f64::MIN, CalculateCommand::None);
+
+            for val in 0..responses.len() {
+                let result = result.get(0, val).unwrap_or_default();
+
+                if result > max.0 {
+                    max = (result, responses[val].clone());
                 }
             }
 
-            match max.1 {
-                None => CalculateCommand::None(0.0),
-                Some(val) => CalculateCommand::BuyProfit(val[2], val[3], 1.0),
-            }
+            max.1
         }),
     );
 

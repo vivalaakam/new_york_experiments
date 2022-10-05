@@ -20,7 +20,6 @@ pub fn get_result_float(
         &candles,
         balance,
         0.5,
-        5,
         1f64,
         0.0001f64,
         Box::new(move |candle, ind, _stats| {
@@ -35,13 +34,13 @@ pub fn get_result_float(
 
                 buffer.push(interpolated);
                 if buffer.avg() >= 1.005 {
-                    CalculateCommand::BuyProfit(buffer.avg(), stake, 1.0)
+                    CalculateCommand::BuyProfit(buffer.avg(), stake)
                 } else {
-                    CalculateCommand::None(0.0)
+                    CalculateCommand::None
                 }
             } else {
                 buffer.push(1.0);
-                CalculateCommand::None(0.0)
+                CalculateCommand::None
             }
         }),
     );

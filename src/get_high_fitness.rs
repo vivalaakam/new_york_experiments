@@ -7,7 +7,6 @@ pub fn get_high_fitness(candles: &Vec<Candle>, stake: f64, profit_matrix: &Vec<f
         &candles,
         3000.0,
         0.5,
-        5,
         1f64,
         0.0001f64,
         Box::new(move |candle, ind, _stats| {
@@ -18,11 +17,11 @@ pub fn get_high_fitness(candles: &Vec<Candle>, stake: f64, profit_matrix: &Vec<f
             for j in 0..profit_matrix.len() {
                 let ind = profit_matrix.len() - j - 1;
                 if (candle.max_profit[ind] / 100f64 + 1f64) > profit_matrix[ind] {
-                    return CalculateCommand::BuyProfit(profit_matrix[ind], stake, 1f64);
+                    return CalculateCommand::BuyProfit(profit_matrix[ind], stake);
                 }
             }
 
-            CalculateCommand::None(0.0)
+            CalculateCommand::None
         }),
     );
 

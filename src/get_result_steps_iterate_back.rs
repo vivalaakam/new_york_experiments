@@ -29,7 +29,6 @@ pub fn get_result_steps_iterate_back(
         &candles,
         balance,
         0.5,
-        5,
         1f64,
         0.0001f64,
         Box::new(move |candle, ind, stats| {
@@ -63,8 +62,8 @@ pub fn get_result_steps_iterate_back(
             }
 
             match max.1 {
-                None => CalculateCommand::None(0.0),
-                Some(val) => CalculateCommand::BuyProfit(val[2], val[3], 1.0),
+                None => CalculateCommand::None,
+                Some(val) => CalculateCommand::BuyProfit(val[2], val[3]),
             }
         }),
     );

@@ -29,7 +29,6 @@ pub async fn save_parse_network_result(
         successful_ratio: result.successful_ratio,
         opened_orders: result.opened_orders,
         executed_orders: result.executed_orders,
-        mae: result.mae,
         stream,
         ..NeatNetworkResults::default()
     };
